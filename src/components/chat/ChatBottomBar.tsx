@@ -21,24 +21,21 @@ const ChatBottomBar = () => {
 	const textAreaRef = useRef<HTMLTextAreaElement>(null);
 	const { selectedUser } = useSelectedUser();
 	const { user: currentUser } = useKindeBrowserClient();
-
 	const { soundEnabled } = usePreferences();
 	const queryClient = useQueryClient();
-
 	const [imgUrl, setImgUrl] = useState("");
 
 	const [playSound1] = useSound("/sounds/keystroke1.mp3");
 	const [playSound2] = useSound("/sounds/keystroke2.mp3");
 	const [playSound3] = useSound("/sounds/keystroke3.mp3");
 	const [playSound4] = useSound("/sounds/keystroke4.mp3");
-
 	const [playNotificationSound] = useSound("/sounds/notification.mp3");
 
 	const playSoundFunctions = [playSound1, playSound2, playSound3, playSound4];
 
 	const playRandomKeyStrokeSound = () => {
 		const randomIndex = Math.floor(Math.random() * playSoundFunctions.length);
-		soundEnabled && playSoundFunctions[randomIndex]();
+		if (soundEnabled) playSoundFunctions[randomIndex]();
 	};
 
 	const { mutate: sendMessage, isPending } = useMutation({
@@ -46,11 +43,10 @@ const ChatBottomBar = () => {
 	});
 
 	const handleSendMessage = () => {
-		if (!message.trim()) return;
+		if (!message.trim() || !selectedUser?.id) return;
 
-		sendMessage({ content: message, messageType: "text", receiverId: selectedUser?.id! });
+		sendMessage({ content: message, messageType: "text", receiverId: selectedUser.id });
 		setMessage("");
-
 		textAreaRef.current?.focus();
 	};
 
@@ -62,7 +58,7 @@ const ChatBottomBar = () => {
 
 		if (e.key === "Enter" && e.shiftKey) {
 			e.preventDefault();
-			setMessage(message + "\n");
+			setMessage((prev) => prev + "\n");
 		}
 	};
 
@@ -71,7 +67,7 @@ const ChatBottomBar = () => {
 		const channel = pusherClient?.subscribe(channelName);
 
 		const handleNewMessage = (data: { message: Message }) => {
-			queryClient.setQueryData(["messages", selectedUser?.id], (oldMessages: Message[]) => {
+			queryClient.setQueryData(["messages", selectedUser?.id], (oldMessages: Message[] = []) => {
 				return [...oldMessages, data.message];
 			});
 
@@ -82,7 +78,6 @@ const ChatBottomBar = () => {
 
 		channel.bind("newMessage", handleNewMessage);
 
-		// ! Absolutely important, otherwise the event listener will be added multiple times which means you'll see the incoming new message multiple times
 		return () => {
 			channel.unbind("newMessage", handleNewMessage);
 			pusherClient.unsubscribe(channelName);
@@ -99,15 +94,16 @@ const ChatBottomBar = () => {
 						widget.close();
 					}}
 				>
-					{({ open }) => {
-						return (
-							<ImageIcon
-								size={20}
-								onClick={() => open()}
-								className='cursor-pointer text-muted-foreground'
-							/>
-						);
-					}}
+					{({ open }) => (
+						<ImageIcon
+							size={20}
+							onClick={(event) => {
+								event.stopPropagation(); // Prevent the click event from bubbling up
+								open();
+							}}
+							className='cursor-pointer text-muted-foreground'
+						/>
+					)}
 				</CldUploadWidget>
 			)}
 
@@ -124,7 +120,9 @@ const ChatBottomBar = () => {
 						<Button
 							type='submit'
 							onClick={() => {
-								sendMessage({ content: imgUrl, messageType: "image", receiverId: selectedUser?.id! });
+								if (selectedUser?.id) {
+									sendMessage({ content: imgUrl, messageType: "image", receiverId: selectedUser.id });
+								}
 								setImgUrl("");
 							}}
 						>
@@ -153,8 +151,7 @@ const ChatBottomBar = () => {
 						autoComplete='off'
 						placeholder='Aa'
 						rows={1}
-						className='w-full border rounded-full flex items-center h-9 resize-none overflow-hidden
-						bg-background min-h-0'
+						className='w-full border rounded-full flex items-center h-9 resize-none overflow-hidden bg-background min-h-0'
 						value={message}
 						onKeyDown={handleKeyDown}
 						onChange={(e) => {
@@ -166,10 +163,8 @@ const ChatBottomBar = () => {
 					<div className='absolute right-2 bottom-0.5'>
 						<EmojiPicker
 							onChange={(emoji) => {
-								setMessage(message + emoji);
-								if (textAreaRef.current) {
-									textAreaRef.current.focus();
-								}
+								setMessage((prev) => prev + emoji);
+								textAreaRef.current?.focus();
 							}}
 						/>
 					</div>
@@ -190,20 +185,24 @@ const ChatBottomBar = () => {
 						variant={"ghost"}
 						size={"icon"}
 					>
-						{!isPending && (
+						{!isPending ? (
 							<ThumbsUp
 								size={20}
 								className='text-muted-foreground'
 								onClick={() => {
-									sendMessage({ content: "👍", messageType: "text", receiverId: selectedUser?.id! });
+									if (selectedUser?.id) {
+										sendMessage({ content: "👍", messageType: "text", receiverId: selectedUser.id });
+									}
 								}}
 							/>
+						) : (
+							<Loader size={20} className='animate-spin' />
 						)}
-						{isPending && <Loader size={20} className='animate-spin' />}
 					</Button>
 				)}
 			</AnimatePresence>
 		</div>
 	);
 };
+
 export default ChatBottomBar;

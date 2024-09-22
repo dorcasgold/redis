@@ -15,7 +15,6 @@ async function getUsers(): Promise<User[]> {
 		cursor = nextCursor;
 		userKeys.push(...keys);
 	} while (cursor !== "0");
-	// user:123 user:456 user:789
 
 	const { getUser } = getKindeServerSession();
 	const currentUser = await getUser();
@@ -27,9 +26,9 @@ async function getUsers(): Promise<User[]> {
 	const users: User[] = [];
 	for (const user of results) {
 		// exclude the current user from the list of users in the sidebar
-		// if (user.id !== currentUser?.id) {
+		if (user.id !== currentUser?.id) {
 			users.push(user);
-		// }
+		}
 	}
 	return users;
 }
